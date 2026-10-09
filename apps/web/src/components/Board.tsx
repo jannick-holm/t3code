@@ -23,6 +23,7 @@ import {
 import { isElectron } from "../env";
 import { useProjects, useServerConfigs, useThreadShells } from "../state/entities";
 import { readEnvironmentScope } from "../state/session";
+import { useRightPanelStore } from "../rightPanelStore";
 import { useNowMinute } from "../hooks/useNowMinute";
 import { useThreadActions } from "../hooks/useThreadActions";
 import { buildThreadRouteParams } from "../threadRoutes";
@@ -200,6 +201,9 @@ export function BoardPage() {
 
   const navigateToThread = useCallback(
     (ref: ScopedThreadRef) => {
+      // Lands on the diff instead of the chat transcript: the board is for
+      // people who want to see what changed, not read a conversation.
+      useRightPanelStore.getState().open(ref, "diff");
       void router.navigate({
         to: "/$environmentId/$threadId",
         params: buildThreadRouteParams(ref),
