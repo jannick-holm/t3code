@@ -2,7 +2,7 @@ import { FileDiff } from "@pierre/diffs/react";
 import { useMemo } from "react";
 import type { ScopedThreadRef } from "@t3tools/contracts";
 
-import { useThreadProjection } from "../state/entities";
+import { useThreadProjection, useThreadStatus } from "../state/entities";
 import { useTheme } from "../hooks/useTheme";
 import { useTurnDiffSummaries } from "../hooks/useTurnDiffSummaries";
 import { useCheckpointDiff } from "../lib/checkpointDiffState";
@@ -34,6 +34,11 @@ export function BoardDiffDialog(props: {
 }) {
   const { threadRef, threadTitle, onOpenChange, onOpenFullThread } = props;
   const { resolvedTheme } = useTheme();
+  // The board never visits a thread's own route, so this is the first thing
+  // to read its full projection: the atom starts "empty" and streams in a
+  // snapshot asynchronously, the same load ChatView would otherwise trigger.
+  const threadStatus = useThreadStatus(threadRef);
+  const threadDetailLoading = threadStatus === "empty" || threadStatus === "synchronizing";
   const projection = useThreadProjection(threadRef)?.projection ?? null;
   const { turnDiffSummaries } = useTurnDiffSummaries(projection);
 
@@ -79,7 +84,11 @@ export function BoardDiffDialog(props: {
           </DialogTitle>
         </DialogHeader>
         <DialogPanel className="max-h-[70vh]">
-          {latestReady === null ? (
+          {threadDetailLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Spinner className="size-5" />
+            </div>
+          ) : latestReady === null ? (
             <p className="py-8 text-center text-sm text-muted-foreground">No changes yet.</p>
           ) : diffState.isPending ? (
             <div className="flex items-center justify-center py-8">
