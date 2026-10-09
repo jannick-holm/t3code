@@ -23,14 +23,18 @@ import {
 import { isElectron } from "../env";
 import { useProjects, useServerConfigs, useThreadShells } from "../state/entities";
 import { readEnvironmentScope } from "../state/session";
-import { useClientSettings } from "../hooks/useSettings";
 import { useNowMinute } from "../hooks/useNowMinute";
 import { useThreadActions } from "../hooks/useThreadActions";
 import { buildThreadRouteParams } from "../threadRoutes";
 import { formatRelativeTimeLabel } from "../timestampFormat";
 import { cn } from "~/lib/utils";
-import { BOARD_COLUMN_ORDER, boardColumnAcceptsDrop, groupThreadsForBoard } from "./Board.logic";
-import { resolveSidebarDropVerb, type SidebarSection } from "./Sidebar.logic";
+import {
+  BOARD_COLUMN_ORDER,
+  boardColumnAcceptsDrop,
+  groupThreadsForBoard,
+  resolveBoardDropVerb,
+} from "./Board.logic";
+import { type SidebarSection } from "./Sidebar.logic";
 import { ProjectFavicon, type ProjectFaviconProject } from "./ProjectFavicon";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { SidebarInset } from "./ui/sidebar";
@@ -155,7 +159,6 @@ export function BoardPage() {
   const threads = useThreadShells();
   const projects = useProjects();
   const serverConfigs = useServerConfigs();
-  const workingShelfEnabled = useClientSettings((s) => s.sidebarWorkingShelfEnabled);
   const now = useNowMinute();
   const router = useRouter();
   const { settleThread, unsettleThread, unsnoozeThread, pinThread, unpinThread } =
@@ -166,8 +169,8 @@ export function BoardPage() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const columns = useMemo(
-    () => groupThreadsForBoard({ threads, serverConfigs, workingShelfEnabled, now }),
-    [threads, serverConfigs, workingShelfEnabled, now],
+    () => groupThreadsForBoard({ threads, serverConfigs, now }),
+    [threads, serverConfigs, now],
   );
   const threadByKey = useMemo(() => {
     const map = new Map<string, EnvironmentThreadShell>();
@@ -218,7 +221,7 @@ export function BoardPage() {
       const thread = threadByKey.get(activeKey);
       if (overId === undefined || fromSection === undefined || thread === undefined) return;
       const toSection = String(overId) as SidebarSection;
-      const verb = resolveSidebarDropVerb(fromSection, toSection);
+      const verb = resolveBoardDropVerb(fromSection, toSection);
       if (verb === null) return;
       if (!checkThreadOperations(thread)) return;
       if (inFlightKeysRef.current.has(activeKey)) return;
@@ -262,10 +265,6 @@ export function BoardPage() {
   const draggingSection = draggingKey === null ? null : (sectionByKey.get(draggingKey) ?? null);
   const draggingThread = draggingKey === null ? null : (threadByKey.get(draggingKey) ?? null);
 
-  const visibleColumns = BOARD_COLUMN_ORDER.filter(
-    (column) => column.id !== "working" || workingShelfEnabled,
-  );
-
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none isolate">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground">
@@ -284,7 +283,7 @@ export function BoardPage() {
             onDragCancel={() => setDraggingKey(null)}
           >
             <div className="flex h-full min-w-fit gap-3 p-3">
-              {visibleColumns.map((column) => (
+              {BOARD_COLUMN_ORDER.map((column) => (
                 <BoardColumnView
                   key={column.id}
                   id={column.id}

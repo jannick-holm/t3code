@@ -23,31 +23,43 @@ export const BOARD_COLUMN_ORDER: ReadonlyArray<{
   readonly label: string;
 }> = [
   { id: "pinned", label: "Pinned" },
-  { id: "active", label: "Active" },
+  { id: "active", label: "Needs You" },
   { id: "working", label: "Working" },
   { id: "snoozed", label: "Snoozed" },
   { id: "settled", label: "Settled" },
 ];
 
-/** Only these columns accept a drop: dragging into Working or Snoozed is not
-    supported anywhere in the app today, since a snooze needs a wake time and
-    "working" reflects a live turn rather than something a user can set. */
-export function boardColumnAcceptsDrop(from: SidebarSection, to: SidebarSection): boolean {
-  return resolveSidebarDropVerb(from, to) !== null;
+/** Dragging into Working or Snoozed is not supported: a snooze needs a wake
+    time a drop can't carry, and "working" reflects a live turn rather than
+    something a user can set. A Working card CAN be dragged out (to Pinned or
+    Settled, same as a Needs You card), but not sideways into Needs You —
+    that column is a derived state (a pending approval or question), not
+    something dropping a card there can create. */
+export function resolveBoardDropVerb(
+  from: SidebarSection,
+  to: SidebarSection,
+): SidebarDropVerb | null {
+  if (from === "working" && to === "active") return null;
+  return resolveSidebarDropVerb(from, to);
 }
 
-export { resolveSidebarDropVerb, type SidebarDropVerb, type SidebarSection };
+export function boardColumnAcceptsDrop(from: SidebarSection, to: SidebarSection): boolean {
+  return resolveBoardDropVerb(from, to) !== null;
+}
 
-/** Buckets every visible thread across every project into the same five
-    sections the sidebar's stacked shelves use, so the board is the same
-    model rendered as columns instead of a stacked list. */
+export { type SidebarDropVerb, type SidebarSection };
+
+/** Buckets every visible thread across every project into the sidebar's five
+    sections, splitting Active into Needs You (waiting on the user) and
+    Working (running with nothing for the user to do) unconditionally — the
+    board always shows both, regardless of the sidebar's own working-shelf
+    beta setting. */
 export function groupThreadsForBoard(input: {
   readonly threads: readonly EnvironmentThreadShell[];
   readonly serverConfigs: ReadonlyMap<EnvironmentId, ServerConfig>;
-  readonly workingShelfEnabled: boolean;
   readonly now: string;
 }): BoardColumns {
-  const { threads, serverConfigs, workingShelfEnabled, now } = input;
+  const { threads, serverConfigs, now } = input;
   const pinned: EnvironmentThreadShell[] = [];
   const active: EnvironmentThreadShell[] = [];
   const working: EnvironmentThreadShell[] = [];
@@ -65,7 +77,7 @@ export function groupThreadsForBoard(input: {
       settled: isSettled,
       pinned: isPinned,
     });
-    if (section === "active" && workingShelfEnabled && isSidebarThreadWorking(thread)) {
+    if (section === "active" && isSidebarThreadWorking(thread)) {
       working.push(thread);
       continue;
     }
