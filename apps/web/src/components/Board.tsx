@@ -43,6 +43,7 @@ import { WorkspacePageHeader } from "./WorkspacePageHeader";
 import { WorkspaceBreadcrumb, WorkspaceBreadcrumbItem } from "./WorkspaceBreadcrumb";
 import { ScrollArea } from "./ui/scroll-area";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
+import { BoardDiffDialog } from "./BoardDiffDialog";
 
 function checkThreadOperations(thread: Pick<EnvironmentThreadShell, "environmentId">): boolean {
   if (readEnvironmentScope(thread.environmentId, AuthOrchestrationOperateScope)) return true;
@@ -166,6 +167,7 @@ export function BoardPage() {
     useThreadActions();
   const inFlightKeysRef = useRef<Set<string>>(new Set());
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
+  const [diffThreadRef, setDiffThreadRef] = useState<ScopedThreadRef | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -199,10 +201,16 @@ export function BoardPage() {
     return map;
   }, [projects]);
 
-  const navigateToThread = useCallback(
+  // A card click opens a lightweight preview dialog instead of the chat
+  // transcript: the board is for seeing what changed, not reading a
+  // conversation. "Open full thread" in that dialog is the escape hatch.
+  const openThreadDiff = useCallback((ref: ScopedThreadRef) => {
+    setDiffThreadRef(ref);
+  }, []);
+
+  const openFullThread = useCallback(
     (ref: ScopedThreadRef) => {
-      // Lands on the diff instead of the chat transcript: the board is for
-      // people who want to see what changed, not read a conversation.
+      setDiffThreadRef(null);
       useRightPanelStore.getState().open(ref, "diff");
       void router.navigate({
         to: "/$environmentId/$threadId",
@@ -295,7 +303,7 @@ export function BoardPage() {
                   threads={columns[column.id]}
                   projectByKey={projectByKey}
                   draggingSection={draggingSection}
-                  onSelectThread={navigateToThread}
+                  onSelectThread={openThreadDiff}
                 />
               ))}
             </div>
@@ -316,6 +324,16 @@ export function BoardPage() {
           </DndContext>
         </div>
       </div>
+      <BoardDiffDialog
+        threadRef={diffThreadRef}
+        threadTitle={
+          diffThreadRef ? (threadByKey.get(scopedThreadKey(diffThreadRef))?.title ?? null) : null
+        }
+        onOpenChange={(open) => {
+          if (!open) setDiffThreadRef(null);
+        }}
+        onOpenFullThread={openFullThread}
+      />
     </SidebarInset>
   );
 }
